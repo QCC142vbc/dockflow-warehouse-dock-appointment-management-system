@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Role } from '../types';
-import api from '../services/api';
+import { User } from '../types';
+import { api } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -30,7 +30,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setUser(null);
       }
-    } catch {
+    } catch (error) {
+      console.error('Auth refresh error:', error);
       setUser(null);
       api.setToken(null);
       setToken(null);
@@ -42,13 +43,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     refreshUser();
 
+    // Fallback: ensure loading is set to false after 5 seconds
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 5000);
+
     const handleUnauthorized = () => {
       setUser(null);
       setToken(null);
     };
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    };
   }, []);
 
   const login = async (email: string, pass: string) => {
@@ -68,11 +77,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
-  const isCarrier = user?.role === Role.CARRIER_ADMIN || user?.role === Role.CARRIER_DISPATCHER;
-  const isWarehouse = user?.role === Role.WAREHOUSE_ADMIN || 
-                     user?.role === Role.WAREHOUSE_DISPATCHER || 
-                     user?.role === Role.WAREHOUSE_OPERATOR;
-  const isAdmin = user?.role === Role.SYSTEM_ADMIN;
+  const isCarrier = user?.role === 'CARRIER';
+  const isWarehouse = user?.role === 'WAREHOUSE_MANAGER' || 
+                     user?.role === 'WAREHOUSE_STAFF';
+  const isAdmin = user?.role === 'ADMIN';
 
   return (
     <AuthContext.Provider value={{ 

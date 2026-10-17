@@ -27,6 +27,9 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
   const isWarehouseUser = user.role === 'WAREHOUSE_MANAGER' || user.role === 'WAREHOUSE_STAFF';
   const isAdmin = user.role === 'ADMIN';
 
+  // For testing: show all menu items regardless of role
+  const showAllMenus = true;
+
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
@@ -59,7 +62,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
         </button>
 
         {/* Carrier Portal */}
-        {(isCarrier || isAdmin) && (
+        {(isCarrier || isAdmin || showAllMenus) && (
           <>
             <div className="nav-section-title">Carrier Operations</div>
             <button
@@ -73,7 +76,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
         )}
 
         {/* Warehouse Portal */}
-        {(isWarehouseUser || isAdmin) && (
+        {(isWarehouseUser || isAdmin || showAllMenus) && (
           <>
             <div className="nav-section-title">Warehouse Operations</div>
             <button
@@ -87,7 +90,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
         )}
 
         {/* Admin Portal */}
-        {isAdmin && (
+        {(isAdmin || showAllMenus) && (
           <>
             <div className="nav-section-title">System Management</div>
             <button
