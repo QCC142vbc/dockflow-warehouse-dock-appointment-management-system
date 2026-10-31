@@ -28,25 +28,25 @@ class Appointment(Base):
     )
 
     carrier_id: Mapped[int] = mapped_column(
-        ForeignKey("carriers.id"),
+        ForeignKey("carriers.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
     warehouse_id: Mapped[int] = mapped_column(
-        ForeignKey("warehouses.id"),
+        ForeignKey("warehouses.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
     dock_id: Mapped[int | None] = mapped_column(
-        ForeignKey("docks.id"),
+        ForeignKey("docks.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
 
     created_by: Mapped[int] = mapped_column(
-        ForeignKey("users.id"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
 

@@ -29,6 +29,8 @@ def get_current_user(
             token,
             settings.SECRET_KEY,
             algorithms=[ALGORITHM],
+            issuer=settings.JWT_ISSUER,
+            audience=settings.JWT_AUDIENCE,
         )
 
         subject = payload.get("sub")

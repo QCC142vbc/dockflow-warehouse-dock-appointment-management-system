@@ -333,35 +333,46 @@ def create_appointment(
             detail="Active warehouse not found.",
         )
 
-    if appointment_data.dock_id is not None:
-        validate_dock_assignment(
-            db=db,
-            dock_id=appointment_data.dock_id,
-            warehouse_id=appointment_data.warehouse_id,
-            start_time=appointment_data.scheduled_start,
-            end_time=appointment_data.scheduled_end,
-            cargo_weight_kg=appointment_data.cargo_weight_kg,
+    try:
+        # Lock the dock row for update to prevent race conditions
+        if appointment_data.dock_id is not None:
+            dock = db.execute(
+                select(Dock).where(Dock.id == appointment_data.dock_id).with_for_update()
+            ).scalar_one_or_none()
+            
+            if dock is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Dock not found.",
+                )
+
+            validate_dock_assignment(
+                db=db,
+                dock_id=appointment_data.dock_id,
+                warehouse_id=appointment_data.warehouse_id,
+                start_time=appointment_data.scheduled_start,
+                end_time=appointment_data.scheduled_end,
+                cargo_weight_kg=appointment_data.cargo_weight_kg,
+            )
+
+        initial_status = (
+            appointment_data.status.value
+            if appointment_data.status in (AppointmentStatus.DRAFT, AppointmentStatus.PENDING)
+            else AppointmentStatus.PENDING.value
         )
 
-    initial_status = (
-        appointment_data.status.value
-        if appointment_data.status in (AppointmentStatus.DRAFT, AppointmentStatus.PENDING)
-        else AppointmentStatus.PENDING.value
-    )
+        reference_number = f"APT-{uuid4().hex[:10].upper()}"
 
-    reference_number = f"APT-{uuid4().hex[:10].upper()}"
+        data_dict = appointment_data.model_dump()
+        data_dict.pop("status", None)
 
-    data_dict = appointment_data.model_dump()
-    data_dict.pop("status", None)
+        new_appointment = Appointment(
+            **data_dict,
+            reference_number=reference_number,
+            created_by=current_user.id,
+            status=initial_status,
+        )
 
-    new_appointment = Appointment(
-        **data_dict,
-        reference_number=reference_number,
-        created_by=current_user.id,
-        status=initial_status,
-    )
-
-    try:
         db.add(new_appointment)
         db.flush()
 

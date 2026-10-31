@@ -16,9 +16,14 @@ DockAppointmentScheduling/
 │   ├── app/
 │   │   ├── api/         # API endpoints
 │   │   ├── core/        # Core configuration and security
+│   │   ├── engines/     # Custom engines
+│   │   ├── integrations/# External integrations
 │   │   ├── models/      # SQLAlchemy models
+│   │   ├── repositories/# Data access layer
 │   │   ├── schemas/     # Pydantic schemas
 │   │   └── services/    # Business logic
+│   ├── migrations/      # Alembic database migrations
+│   ├── scripts/         # Utility scripts (create_admin, seed_demo_data)
 │   ├── requirements.txt
 │   └── .env.example
 ├── frontend/            # React frontend
@@ -78,6 +83,8 @@ DATABASE_URL=sqlite:///./dock_appointments.db
 SECRET_KEY=your-secret-key-here
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 CORS_ORIGINS=http://localhost:5173
+JWT_ISSUER=dock-appointment-scheduling
+JWT_AUDIENCE=dock-appointment-api
 ```
 
 **Generate a secure SECRET_KEY:**
@@ -178,6 +185,8 @@ The application will be available at:
 | `SECRET_KEY` | Secret key for JWT tokens | (required in production) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT token expiration time | 30 |
 | `CORS_ORIGINS` | Comma-separated list of allowed CORS origins | http://localhost:5173 |
+| `JWT_ISSUER` | JWT token issuer | dock-appointment-scheduling |
+| `JWT_AUDIENCE` | JWT token audience | dock-appointment-api |
 
 ## Testing
 
@@ -264,8 +273,15 @@ alembic upgrade head
 - `PUT /api/v1/appointments/{id}` - Update appointment
 - `DELETE /api/v1/appointments/{id}` - Delete appointment
 
+### Dock Unavailability
+- `GET /api/v1/dock-unavailability` - List dock unavailability records
+- `POST /api/v1/dock-unavailability` - Create dock unavailability record
+- `GET /api/v1/dock-unavailability/{id}` - Get dock unavailability by ID
+- `PATCH /api/v1/dock-unavailability/{id}` - Update dock unavailability
+- `DELETE /api/v1/dock-unavailability/{id}` - Delete dock unavailability
+
 ### Dashboard
-- `GET /api/v1/dashboard/stats` - Get dashboard statistics
+- `GET /api/v1/dashboard/metrics` - Get dashboard metrics
 
 ### Audit Logs
 - `GET /api/v1/audit-logs` - List audit logs

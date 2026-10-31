@@ -6,6 +6,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,6 +15,14 @@ from app.core.database import Base, UTCDateTime
 
 class Dock(Base):
     __tablename__ = "docks"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "dock_code",
+            "warehouse_id",
+            name="uq_dock_code_warehouse",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         Integer,

@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     CORS_ORIGINS: str = "http://localhost:5173"
+    
+    JWT_ISSUER: str = "dock-appointment-scheduling"
+    JWT_AUDIENCE: str = "dock-appointment-api"
 
     @field_validator("SECRET_KEY")
     @classmethod

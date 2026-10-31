@@ -42,6 +42,8 @@ def create_access_token(
     payload = {
         "sub": subject,
         "exp": expire,
+        "iss": settings.JWT_ISSUER,
+        "aud": settings.JWT_AUDIENCE,
     }
 
     return jwt.encode(
@@ -57,6 +59,8 @@ def decode_access_token(token: str) -> dict | None:
             token,
             settings.SECRET_KEY,
             algorithms=[ALGORITHM],
+            issuer=settings.JWT_ISSUER,
+            audience=settings.JWT_AUDIENCE,
         )
     except JWTError:
         return None
