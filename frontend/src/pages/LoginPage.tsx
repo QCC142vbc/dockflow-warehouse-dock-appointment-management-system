@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Warehouse, LogIn, ShieldAlert, User, KeyRound, Truck } from 'lucide-react';
+import { Warehouse, LogIn, ShieldAlert } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
@@ -21,12 +21,6 @@ export const LoginPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const setDemoCredentials = (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setError(null);
   };
 
   return (
@@ -121,50 +115,6 @@ export const LoginPage: React.FC = () => {
           </button>
         </form>
 
-        {/* Demo Fast Login Pills */}
-        <div style={{ marginTop: '28px', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Quick Demo Accounts:
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              style={{ justifyContent: 'flex-start', fontSize: '0.75rem' }}
-              onClick={() => setDemoCredentials('admin@dockflow.local', 'AdminPass123!')}
-            >
-              <KeyRound size={14} color="#0284c7" />
-              Admin
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              style={{ justifyContent: 'flex-start', fontSize: '0.75rem' }}
-              onClick={() => setDemoCredentials('manager.budapest@dockflow.local', 'ManagerPass123!')}
-            >
-              <Warehouse size={14} color="#10b981" />
-              WH Manager
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              style={{ justifyContent: 'flex-start', fontSize: '0.75rem' }}
-              onClick={() => setDemoCredentials('staff.budapest@dockflow.local', 'StaffPass123!')}
-            >
-              <User size={14} color="#8b5cf6" />
-              WH Staff
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              style={{ justifyContent: 'flex-start', fontSize: '0.75rem' }}
-              onClick={() => setDemoCredentials('dispatcher@translog.com', 'CarrierPass123!')}
-            >
-              <Truck size={14} color="#f59e0b" />
-              Carrier
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

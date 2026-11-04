@@ -96,10 +96,11 @@ def get_dashboard_metrics(
             if dt in daily_counts:
                 daily_counts[dt] += 1
 
-    daily_volume = [
-        DailyVolumeItem(date=d, count=c)
-        for d, c in sorted(daily_counts.items())
-    ]
+    daily_volume = (
+        [DailyVolumeItem(date=d, count=c) for d, c in sorted(daily_counts.items())]
+        if appointments
+        else []
+    )
 
     # Dock utilization calculation (blocking appointments in next/past days vs dock capacity)
     # Total hours booked by blocking appointments
@@ -108,13 +109,18 @@ def get_dashboard_metrics(
         if appt.status in BLOCKING_STATUSES:
             s = normalize_datetime(appt.scheduled_start)
             e = normalize_datetime(appt.scheduled_end)
-            if s >= start_period and e <= end_period:
-                duration_hours = max(0.0, (e - s).total_seconds() / 3600.0)
-                total_booked_hours += duration_hours
+            overlap_start = max(s, start_period)
+            overlap_end = min(e, end_period)
+            if overlap_end > overlap_start:
+                total_booked_hours += (overlap_end - overlap_start).total_seconds() / 3600.0
 
-    # Standard operational hours: 12 hours per day per active dock
-    operational_hours_available = max(1.0, active_docks * days * 2 * 12.0)
-    utilization = round(min(100.0, (total_booked_hours / operational_hours_available) * 100.0), 1)
+    # Calendar-time utilization is unavailable when no active dock capacity exists.
+    period_hours = (end_period - start_period).total_seconds() / 3600.0
+    utilization = (
+        round(min(100.0, (total_booked_hours / (active_docks * period_hours)) * 100.0), 1)
+        if active_docks and period_hours > 0
+        else None
+    )
 
     return DashboardMetrics(
         total_appointments=len(appointments),

@@ -23,13 +23,30 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: dock_appointments_backend
-    environment:
+    env_file:
+      - ./backend/.env
+    environment: &backend_environment
       DATABASE_URL: postgresql://dockuser:dockpassword@postgres:5432/dock_appointments
-      SECRET_KEY: ${SECRET_KEY}
-      DEBUG: ${DEBUG:-False}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
     ports:
       - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  outbox_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dock_appointments_outbox_worker
+    command: ["python", "outbox_worker.py"]
+    profiles: ["integration"]
+    env_file:
+      - ./backend/.env
+    environment:
+      <<: *backend_environment
+      OPERATIONS_API_URL: ${OPERATIONS_API_URL:-http://host.docker.internal:8001/api/v1/integration}
     depends_on:
       postgres:
         condition: service_healthy

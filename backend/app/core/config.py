@@ -12,17 +12,33 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     CORS_ORIGINS: str = "http://localhost:5173"
+    SERVICE_AUTH_SECRET: str | None = None
+    SERVICE_AUTH_TOKEN_EXPIRE_SECONDS: int = 300
+    SERVICE_AUTH_ISSUER: str = "dock-appointment-scheduling"
+    SERVICE_AUTH_AUDIENCE: str = "dockflow-operations"
     
     JWT_ISSUER: str = "dock-appointment-scheduling"
     JWT_AUDIENCE: str = "dock-appointment-api"
 
     @field_validator("SECRET_KEY")
     @classmethod
-    def validate_secret_key(cls, v: str, info) -> str:
-        debug_mode = info.data.get("DEBUG", False)
-        if not debug_mode and not v:
-            raise ValueError("SECRET_KEY must be set in production")
-        return v
+    def validate_secret_key(cls, value: str) -> str:
+        secret = value.strip()
+        if not secret:
+            raise ValueError("SECRET_KEY must be configured")
+        if len(secret) < 32:
+            raise ValueError("SECRET_KEY must be at least 32 characters.")
+        return secret
+
+    @field_validator("SERVICE_AUTH_SECRET")
+    @classmethod
+    def validate_service_auth_secret(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        secret = value.strip()
+        if not secret or len(secret) < 32:
+            raise ValueError("SERVICE_AUTH_SECRET must be at least 32 characters.")
+        return secret
 
     model_config = SettingsConfigDict(
         env_file=".env",

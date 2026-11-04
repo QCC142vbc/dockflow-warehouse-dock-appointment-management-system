@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -24,6 +25,7 @@ from app.schemas.appointment import (
 )
 from app.schemas.appointment_event import AppointmentEventResponse
 from app.services.audit import log_audit
+from app.services.outbox import emit_outbox_event
 from app.services.scheduling_engine import (
     BLOCKING_STATUSES,
     find_dock_conflicts,
@@ -289,6 +291,59 @@ def get_appointment_events(
     return list(db.scalars(statement).all())
 
 
+@router.delete(
+    "/{appointment_id}",
+    response_model=AppointmentResponse,
+)
+def cancel_appointment(
+    appointment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    appointment = get_accessible_appointment(appointment_id, db, current_user)
+    if appointment.status == AppointmentStatus.CANCELLED.value:
+        return to_response_dto(db, appointment)
+    if appointment.status not in {
+        AppointmentStatus.DRAFT.value,
+        AppointmentStatus.PENDING.value,
+        AppointmentStatus.CONFIRMED.value,
+        AppointmentStatus.CHECKED_IN.value,
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This appointment is already in progress or finalized and cannot be cancelled.",
+        )
+    if current_user.role not in {"CARRIER", "ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to cancel appointments.")
+
+    previous_status = appointment.status
+    appointment.status = AppointmentStatus.CANCELLED.value
+    appointment.updated_at = datetime.now(timezone.utc)
+    db.add(
+        AppointmentEvent(
+            appointment_id=appointment.id,
+            changed_by=current_user.id,
+            previous_status=previous_status,
+            new_status=AppointmentStatus.CANCELLED.value,
+            event_type="CANCELLED",
+            reason="Cancelled by the user.",
+        )
+    )
+    log_audit(
+        db=db,
+        user_id=current_user.id,
+        action="CANCEL_APPOINTMENT",
+        entity_type="Appointment",
+        entity_id=appointment.id,
+        description=f"Cancelled appointment {appointment.reference_number}",
+        old_values={"status": previous_status},
+        new_values={"status": AppointmentStatus.CANCELLED.value},
+    )
+    db.commit()
+    db.refresh(appointment)
+    return to_response_dto(db, appointment)
+
+
 @router.post(
     "/",
     response_model=AppointmentResponse,
@@ -402,9 +457,39 @@ def create_appointment(
             },
         )
 
+        # Emit Transactional Outbox event for cross-service sync
+        emit_outbox_event(
+            db=db,
+            event_type="appointment.created",
+            payload={
+                "appointment_id": new_appointment.appointment_id,
+                "reference_number": reference_number,
+                "external_carrier_id": carrier.external_carrier_id if carrier else None,
+                "carrier_name": carrier.company_name,
+                "external_warehouse_id": warehouse.external_warehouse_id if warehouse else None,
+                "scheduled_start": new_appointment.scheduled_start.isoformat(),
+                "scheduled_end": new_appointment.scheduled_end.isoformat(),
+                "status": initial_status,
+                "vehicle_registration": new_appointment.vehicle_registration,
+                "vehicle_type": new_appointment.vehicle_type,
+                "cargo_type": new_appointment.cargo_type,
+                "cargo_weight_kg": new_appointment.cargo_weight_kg,
+            },
+        )
+
         db.commit()
         db.refresh(new_appointment)
 
+    except IntegrityError as exc:
+        db.rollback()
+        # Handle unique constraint violation (concurrent booking attempt)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "An appointment already exists for this dock at the specified time.",
+                "code": "DUPLICATE_APPOINTMENT",
+            },
+        ) from exc
     except Exception:
         db.rollback()
         raise

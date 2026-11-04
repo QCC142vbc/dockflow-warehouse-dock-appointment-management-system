@@ -14,4 +14,12 @@ describe('ApiClient', () => {
     api.setToken(null);
     expect(api.getToken()).toBeNull();
   });
+
+  it('clears the stored token on logout', () => {
+    api.setToken('test-jwt-token-123');
+
+    api.logout();
+
+    expect(api.getToken()).toBeNull();
+  });
 });

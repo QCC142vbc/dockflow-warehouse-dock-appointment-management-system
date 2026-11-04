@@ -2,6 +2,10 @@
 
 A warehouse dock appointment management system built with FastAPI (backend) and React (frontend). This system allows carriers to schedule dock appointments and warehouse managers to manage them efficiently.
 
+## User-entered operational data
+
+The application starts without seeded warehouses, docks, carriers, or appointments. Administrators create warehouse records, and authorized warehouse staff create and manage docks and appointments through the application. Appointment forms require users to enter arrival and departure times and select any dock assignment themselves; availability checks only list eligible docks. Dashboard metrics reflect registered records and remain unavailable when there is insufficient data. Warehouse, dock, and appointment deletions are handled as deactivation or cancellation so linked operational and audit history is retained.
+
 ## Prerequisites
 
 - Python 3.14+
@@ -23,7 +27,7 @@ DockAppointmentScheduling/
 │   │   ├── schemas/     # Pydantic schemas
 │   │   └── services/    # Business logic
 │   ├── migrations/      # Alembic database migrations
-│   ├── scripts/         # Utility scripts (create_admin, seed_demo_data)
+│   ├── scripts/         # Administrator setup utilities
 │   ├── requirements.txt
 │   └── .env.example
 ├── frontend/            # React frontend
@@ -161,11 +165,19 @@ npm run dev
 
 ### Docker Compose (Production)
 
-Build and start all services:
+Create `backend/.env` from `backend/.env.example`, configure a strong `SECRET_KEY`, and set `SERVICE_AUTH_SECRET` to the same random value used by the DockFlow Operations backend. Start the application services:
 
 ```bash
 docker-compose up --build
 ```
+
+To also run the outbox dispatcher, configure `OPERATIONS_API_URL` in the Compose project's root `.env` file if DockFlow Operations is not reachable at the default host URL, then start the integration profile:
+
+```bash
+docker-compose --profile integration up --build
+```
+
+The worker and DockFlow Operations must use matching `SERVICE_AUTH_SECRET`, `SERVICE_AUTH_ISSUER`, and `SERVICE_AUTH_AUDIENCE` values. The worker sends short-lived bearer tokens; the Operations sync routes reject unauthenticated requests. The default container URL assumes DockFlow Operations is running on the Docker host at port 8001.
 
 The application will be available at:
 - Frontend: `http://localhost:80`
@@ -182,11 +194,15 @@ The application will be available at:
 | `APP_VERSION` | Application version | 0.1.0 |
 | `DEBUG` | Debug mode (True/False) | False |
 | `DATABASE_URL` | Database connection string | sqlite:///./dock_appointments.db |
-| `SECRET_KEY` | Secret key for JWT tokens | (required in production) |
+| `SECRET_KEY` | Random secret of at least 32 characters for JWT tokens | Required |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT token expiration time | 30 |
 | `CORS_ORIGINS` | Comma-separated list of allowed CORS origins | http://localhost:5173 |
 | `JWT_ISSUER` | JWT token issuer | dock-appointment-scheduling |
 | `JWT_AUDIENCE` | JWT token audience | dock-appointment-api |
+| `SERVICE_AUTH_SECRET` | Shared secret for signed outbox-worker tokens (minimum 32 characters) | Not set |
+| `SERVICE_AUTH_TOKEN_EXPIRE_SECONDS` | Outbox-worker token lifetime | 300 |
+| `SERVICE_AUTH_ISSUER` | Integration token issuer | dock-appointment-scheduling |
+| `SERVICE_AUTH_AUDIENCE` | Integration token audience | dockflow-operations |
 
 ## Testing
 

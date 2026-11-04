@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -137,6 +137,17 @@ def create_dock(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Warehouse not found.",
         )
+    existing_dock = db.scalar(
+        select(Dock.id).where(
+            Dock.warehouse_id == warehouse.id,
+            Dock.dock_code == dock_data.dock_code,
+        )
+    )
+    if existing_dock:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A dock with this code already exists in the warehouse.",
+        )
 
     new_dock = Dock(
         **dock_data.model_dump()
@@ -180,6 +191,18 @@ def update_dock(
         )
 
     update_data = dock_data.model_dump(exclude_unset=True)
+    dock_code = update_data.get("dock_code", dock.dock_code)
+    if dock_code and db.scalar(
+        select(Dock.id).where(
+            Dock.warehouse_id == dock.warehouse_id,
+            Dock.dock_code == dock_code,
+            Dock.id != dock_id,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A dock with this code already exists in the warehouse.",
+        )
     old_values = {k: getattr(dock, k) for k in update_data.keys()}
 
     for field, value in update_data.items():
@@ -200,6 +223,34 @@ def update_dock(
     db.refresh(dock)
 
     return dock
+
+
+@router.delete(
+    "/{dock_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def deactivate_dock(
+    dock_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("ADMIN", "WAREHOUSE_MANAGER")),
+):
+    dock = db.get(Dock, dock_id)
+    if dock is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dock not found.")
+    if dock.is_active:
+        dock.is_active = False
+        log_audit(
+            db=db,
+            user_id=current_user.id,
+            action="DEACTIVATE_DOCK",
+            entity_type="Dock",
+            entity_id=dock.id,
+            description=f"Deactivated dock {dock.name} ({dock.dock_code})",
+            old_values={"is_active": True},
+            new_values={"is_active": False},
+        )
+        db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(

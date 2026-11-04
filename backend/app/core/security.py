@@ -53,6 +53,25 @@ def create_access_token(
     )
 
 
+def create_service_access_token() -> str:
+    secret = settings.SERVICE_AUTH_SECRET
+    if not secret:
+        raise RuntimeError(
+            "SERVICE_AUTH_SECRET must be configured before dispatching integration events."
+        )
+
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": settings.SERVICE_AUTH_ISSUER,
+        "scope": "integration:write",
+        "iat": now,
+        "exp": now + timedelta(seconds=settings.SERVICE_AUTH_TOKEN_EXPIRE_SECONDS),
+        "iss": settings.SERVICE_AUTH_ISSUER,
+        "aud": settings.SERVICE_AUTH_AUDIENCE,
+    }
+    return jwt.encode(payload, secret, algorithm=ALGORITHM)
+
+
 def decode_access_token(token: str) -> dict | None:
     try:
         return jwt.decode(

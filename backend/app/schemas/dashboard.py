@@ -16,7 +16,7 @@ class DashboardMetrics(BaseModel):
     no_show_appointments: int = 0
     in_progress_appointments: int = 0
     checked_in_appointments: int = 0
-    dock_utilization_percent: float = Field(default=0.0, ge=0.0, le=100.0)
+    dock_utilization_percent: float | None = Field(default=None, ge=0.0, le=100.0)
     status_distribution: dict[str, int] = {}
     daily_volume: list[DailyVolumeItem] = []
     total_docks: int = 0

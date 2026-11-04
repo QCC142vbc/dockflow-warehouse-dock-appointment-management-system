@@ -9,6 +9,7 @@ from app.models.appointment import Appointment
 from app.models.appointment_event import AppointmentEvent
 from app.models.dock_unavailability import DockUnavailability
 from app.models.audit_log import AuditLog
+from app.models.event_outbox import EventOutbox
 
 __all__ = [
     "User",
@@ -22,4 +23,5 @@ __all__ = [
     "AppointmentEvent",
     "DockUnavailability",
     "AuditLog",
+    "EventOutbox",
 ]

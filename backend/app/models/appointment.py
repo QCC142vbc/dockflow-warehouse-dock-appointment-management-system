@@ -1,7 +1,9 @@
+import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -14,10 +16,34 @@ from app.core.database import Base, UTCDateTime
 class Appointment(Base):
     __tablename__ = "appointments"
 
+    # Unique constraint to help prevent concurrent duplicate bookings
+    # For PostgreSQL, this should be enhanced with an exclusion constraint
+    # See migration: add_unique_constraint_prevent_concurrent_booking
+    __table_args__ = (
+        Index(
+            'ix_appointments_dock_time_status_unique',
+            'dock_id',
+            'scheduled_start',
+            'scheduled_end',
+            'status',
+            unique=True,
+            postgresql_where="status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN', 'ARRIVED', 'IN_PROGRESS')"
+        ),
+    )
+
     id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
         index=True,
+    )
+
+    # Stable external UUID identifier for cross-system references (DockFlow Operations)
+    appointment_id: Mapped[str] = mapped_column(
+        String(36),
+        unique=True,
+        nullable=False,
+        index=True,
+        default=lambda: str(uuid.uuid4()),
     )
 
     reference_number: Mapped[str] = mapped_column(

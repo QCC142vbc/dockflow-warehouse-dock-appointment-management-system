@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -177,3 +177,31 @@ def update_warehouse(
     db.refresh(warehouse)
 
     return warehouse
+
+
+@router.delete(
+    "/{warehouse_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def deactivate_warehouse(
+    warehouse_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("ADMIN")),
+):
+    warehouse = db.get(Warehouse, warehouse_id)
+    if warehouse is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Warehouse not found.")
+    if warehouse.is_active:
+        warehouse.is_active = False
+        log_audit(
+            db=db,
+            user_id=current_user.id,
+            action="DEACTIVATE_WAREHOUSE",
+            entity_type="Warehouse",
+            entity_id=warehouse.id,
+            description=f"Deactivated warehouse {warehouse.name} ({warehouse.code})",
+            old_values={"is_active": True},
+            new_values={"is_active": False},
+        )
+        db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

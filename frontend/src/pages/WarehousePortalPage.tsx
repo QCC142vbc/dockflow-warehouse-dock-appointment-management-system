@@ -50,6 +50,14 @@ export const WarehousePortalPage: React.FC<WarehousePortalPageProps> = ({
 
   // New Maintenance Form State
   const [showMaintModal, setShowMaintModal] = useState(false);
+  const [showDockModal, setShowDockModal] = useState(false);
+  const [editingDock, setEditingDock] = useState<Dock | null>(null);
+  const [dockSearch, setDockSearch] = useState('');
+  const [dockCode, setDockCode] = useState('');
+  const [dockName, setDockName] = useState('');
+  const [dockDescription, setDockDescription] = useState('');
+  const [dockMaxLength, setDockMaxLength] = useState('');
+  const [dockMaxWeight, setDockMaxWeight] = useState('');
   const [maintDockId, setMaintDockId] = useState<number | ''>('');
   const [maintReason, setMaintReason] = useState('MAINTENANCE');
   const [maintDesc, setMaintDesc] = useState('');
@@ -78,11 +86,59 @@ export const WarehousePortalPage: React.FC<WarehousePortalPageProps> = ({
         setDocks(dockList);
         setAppointments(apptList);
         setUnavailabilities(unavailList);
+      } else {
+        setDocks([]);
+        setAppointments([]);
+        setUnavailabilities([]);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load warehouse data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openDockForm = (dock: Dock | null = null) => {
+    setEditingDock(dock);
+    setDockCode(dock?.dock_code ?? '');
+    setDockName(dock?.name ?? '');
+    setDockDescription(dock?.description ?? '');
+    setDockMaxLength(dock?.max_vehicle_length?.toString() ?? '');
+    setDockMaxWeight(dock?.max_vehicle_weight?.toString() ?? '');
+    setShowDockModal(true);
+  };
+
+  const handleSaveDock = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedWarehouseId) return;
+    const values = {
+      warehouse_id: Number(selectedWarehouseId),
+      dock_code: dockCode.trim(),
+      name: dockName.trim(),
+      description: dockDescription.trim() || null,
+      max_vehicle_length: dockMaxLength ? Number(dockMaxLength) : null,
+      max_vehicle_weight: dockMaxWeight ? Number(dockMaxWeight) : null,
+    };
+    try {
+      if (editingDock) await api.updateDock(editingDock.id, values);
+      else await api.createDock(values);
+      setShowDockModal(false);
+      setEditingDock(null);
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to save dock');
+    }
+  };
+
+  const handleToggleDock = async (dock: Dock) => {
+    const action = dock.is_active ? 'deactivate' : 'reactivate';
+    if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} dock ${dock.dock_code}? Existing appointment history will be retained.`)) return;
+    try {
+      if (dock.is_active) await api.deleteDock(dock.id);
+      else await api.updateDock(dock.id, { is_active: true });
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || `Failed to ${action} dock`);
     }
   };
 
@@ -165,6 +221,14 @@ export const WarehousePortalPage: React.FC<WarehousePortalPageProps> = ({
       {error && (
         <div className="alert alert-danger" style={{ marginBottom: '20px' }}>
           <span>{error}</span>
+        </div>
+      )}
+
+      {!loading && warehouses.length === 0 && (
+        <div className="card" style={{ textAlign: 'center', padding: '30px', marginBottom: '18px' }}>
+          <WarehouseIcon size={28} color="#0284c7" />
+          <h3>No warehouse is assigned to this account</h3>
+          <p style={{ color: '#64748b' }}>Ask an administrator to register a warehouse and assign it to your account before managing docks or appointments.</p>
         </div>
       )}
 
@@ -551,6 +615,12 @@ export const WarehousePortalPage: React.FC<WarehousePortalPageProps> = ({
       {activeSubTab === 'docks' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+            {(user?.role === 'ADMIN' || user?.role === 'WAREHOUSE_MANAGER') && (
+              <button className="btn btn-primary btn-sm" onClick={() => openDockForm()}>
+                <Plus size={14} />
+                <span>Add Dock</span>
+              </button>
+            )}
             <button className="btn btn-primary btn-sm" onClick={() => setShowMaintModal(true)}>
               <Plus size={14} />
               <span>Register Maintenance Window</span>
@@ -563,8 +633,17 @@ export const WarehousePortalPage: React.FC<WarehousePortalPageProps> = ({
               <div className="card-title">
                 <span>Dock Bays in Warehouse</span>
               </div>
+              <input
+                type="search"
+                className="form-input"
+                aria-label="Search docks"
+                placeholder="Search dock code or name"
+                value={dockSearch}
+                onChange={(event) => setDockSearch(event.target.value)}
+                style={{ maxWidth: '360px', marginBottom: '12px' }}
+              />
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {docks.map((dock) => (
+                {docks.filter((dock) => `${dock.dock_code} ${dock.name}`.toLowerCase().includes(dockSearch.toLowerCase())).map((dock) => (
                   <div
                     key={dock.id}
                     style={{
@@ -598,8 +677,19 @@ export const WarehousePortalPage: React.FC<WarehousePortalPageProps> = ({
                         Max Vehicle Length: {dock.max_vehicle_length ? `${dock.max_vehicle_length} m` : 'Unrestricted'} • Max Weight: {dock.max_vehicle_weight ? `${dock.max_vehicle_weight.toLocaleString()} kg` : 'Unrestricted'}
                       </div>
                     </div>
+                    {(user?.role === 'ADMIN' || user?.role === 'WAREHOUSE_MANAGER') && (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-secondary btn-sm" onClick={() => openDockForm(dock)}>Edit</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => handleToggleDock(dock)}>{dock.is_active ? 'Deactivate' : 'Reactivate'}</button>
+                      </div>
+                    )}
                   </div>
                 ))}
+                {docks.filter((dock) => `${dock.dock_code} ${dock.name}`.toLowerCase().includes(dockSearch.toLowerCase())).length === 0 && (
+                  <div style={{ textAlign: 'center', padding: 28, color: '#64748b' }}>
+                    No docks match this search. Add a dock to make appointment scheduling available.
+                  </div>
+                )}
               </div>
             </div>
 
@@ -653,6 +743,45 @@ export const WarehousePortalPage: React.FC<WarehousePortalPageProps> = ({
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {showDockModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <h3>{editingDock ? 'Edit Dock' : 'Add Dock'}</h3>
+              <button className="btn btn-secondary btn-sm" onClick={() => { setShowDockModal(false); setEditingDock(null); }}><XCircle size={16} /></button>
+            </div>
+            <form onSubmit={handleSaveDock}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Dock Code *</label>
+                  <input className="form-input" required minLength={1} maxLength={50} value={dockCode} onChange={(event) => setDockCode(event.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Dock Name *</label>
+                  <input className="form-input" required minLength={2} maxLength={150} value={dockName} onChange={(event) => setDockName(event.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Description</label>
+                  <textarea className="form-textarea" rows={2} value={dockDescription} onChange={(event) => setDockDescription(event.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Maximum Vehicle Length (m)</label>
+                  <input className="form-input" type="number" min="0.01" step="any" value={dockMaxLength} onChange={(event) => setDockMaxLength(event.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Maximum Vehicle Weight (kg)</label>
+                  <input className="form-input" type="number" min="0.01" step="any" value={dockMaxWeight} onChange={(event) => setDockMaxWeight(event.target.value)} />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowDockModal(false); setEditingDock(null); }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">{editingDock ? 'Save Changes' : 'Create Dock'}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

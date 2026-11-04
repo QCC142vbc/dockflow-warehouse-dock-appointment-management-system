@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { api } from '../services/api';
-import { Appointment, AppointmentStatus, Warehouse } from '../types';
+import { useAuth } from '../../context/AuthContext';
+import { api } from '../../services/api';
+import { Appointment, AppointmentStatus, Warehouse } from '../../types';
 import {
   Calendar,
   CheckCircle2,

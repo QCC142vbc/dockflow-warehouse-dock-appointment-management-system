@@ -73,18 +73,10 @@ def admin_user(db):
 
 
 @pytest.fixture
-def admin_token(client, admin_user):
-    response = client.post(
-        "/api/v1/auth/login",
-        data={
-            "username": admin_user.email,
-            "password": "TestPassword123",
-        },
-    )
+def admin_token(admin_user):
+    from app.core.security import create_access_token
 
-    assert response.status_code == 200
-
-    return response.json()["access_token"]
+    return create_access_token(subject=str(admin_user.id))
 
 
 @pytest.fixture

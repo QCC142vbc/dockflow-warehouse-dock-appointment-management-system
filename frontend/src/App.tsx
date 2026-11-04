@@ -11,6 +11,7 @@ import { StatusTransitionModal } from './components/StatusTransitionModal';
 import { AppointmentDetailModal } from './components/AppointmentDetailModal';
 import { Appointment, AppointmentStatus } from './types';
 import { Warehouse as WarehouseIcon, Plus, Bell } from 'lucide-react';
+import { api } from './services/api';
 
 export const App: React.FC = () => {
   const { user, loading } = useAuth();
@@ -53,6 +54,16 @@ export const App: React.FC = () => {
     return <LoginPage />;
   }
 
+  const canAccessTab = (tab: ActiveTab) => {
+    if (tab === 'dashboard') return true;
+    if (tab === 'carrier') return user.role === 'CARRIER' || user.role === 'ADMIN';
+    if (tab === 'warehouse') {
+      return user.role === 'WAREHOUSE_MANAGER' || user.role === 'WAREHOUSE_STAFF' || user.role === 'ADMIN';
+    }
+    return user.role === 'ADMIN';
+  };
+  const visibleTab = canAccessTab(activeTab) ? activeTab : 'dashboard';
+
   const handleOpenAppointmentDetail = (appt: Appointment) => {
     setDetailAppointment(appt);
     setIsDetailModalOpen(true);
@@ -78,6 +89,16 @@ export const App: React.FC = () => {
     setRefreshTrigger((prev) => prev + 1);
   };
 
+  const handleCancelAppointment = async (appointment: Appointment) => {
+    try {
+      await api.deleteAppointment(appointment.id);
+      setIsDetailModalOpen(false);
+      handleSuccess();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Appointment could not be cancelled.');
+    }
+  };
+
   const pageTitles: Record<ActiveTab, string> = {
     dashboard: 'Operational Overview & KPIs',
     carrier: 'Carrier Portal — Freight Booking & Tracking',
@@ -88,12 +109,17 @@ export const App: React.FC = () => {
   return (
     <div className="app-container">
       {/* Sidebar Navigation */}
-      <Navigation activeTab={activeTab} onSelectTab={setActiveTab} />
+      <Navigation
+        activeTab={visibleTab}
+        onSelectTab={(tab) => {
+          if (canAccessTab(tab)) setActiveTab(tab);
+        }}
+      />
 
       {/* Main Content Area */}
       <div className="main-wrapper">
         <header className="top-bar">
-          <div className="top-bar-title">{pageTitles[activeTab]}</div>
+          <div className="top-bar-title">{pageTitles[visibleTab]}</div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             {(user.role === 'CARRIER' || user.role === 'ADMIN') && (
@@ -125,11 +151,14 @@ export const App: React.FC = () => {
         </header>
 
         <main className="content-body" key={refreshTrigger}>
-          {activeTab === 'dashboard' && (
-            <DashboardPage onOpenAppointment={handleOpenAppointmentDetail} />
+          {visibleTab === 'dashboard' && (
+            <DashboardPage
+              onOpenAppointment={handleOpenAppointmentDetail}
+              onOpenAdmin={user.role === 'ADMIN' ? () => setActiveTab('admin') : undefined}
+            />
           )}
 
-          {activeTab === 'carrier' && (
+          {visibleTab === 'carrier' && (
             <CarrierPortalPage
               onOpenAppointment={handleOpenAppointmentDetail}
               onEditAppointment={handleOpenEdit}
@@ -138,14 +167,14 @@ export const App: React.FC = () => {
             />
           )}
 
-          {activeTab === 'warehouse' && (
+          {visibleTab === 'warehouse' && (
             <WarehousePortalPage
               onOpenAppointment={handleOpenAppointmentDetail}
               onOpenStatusModal={handleOpenStatusModal}
             />
           )}
 
-          {activeTab === 'admin' && (
+          {visibleTab === 'admin' && (
             <AdminPortalPage />
           )}
         </main>
@@ -173,6 +202,7 @@ export const App: React.FC = () => {
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         appointment={detailAppointment}
+        onDelete={handleCancelAppointment}
       />
     </div>
   );

@@ -32,13 +32,19 @@ export const StatusTransitionModal: React.FC<StatusTransitionModalProps> = ({
     setError(null);
 
     if (targetStatus === 'CONFIRMED') {
+      let cancelled = false;
       api.getDocks(appointment.warehouse_id).then((allDocks) => {
-        setDocks(allDocks.filter((d) => d.is_active));
-        if (!appointment.dock_id && allDocks.length > 0) {
-          const firstActive = allDocks.find((d) => d.is_active);
-          if (firstActive) setDockId(firstActive.id);
+        if (cancelled) return;
+        const activeDocks = allDocks.filter((dock) => dock.is_active);
+        setDocks(activeDocks);
+      }).catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load docks.');
         }
       });
+      return () => {
+        cancelled = true;
+      };
     }
   }, [isOpen, appointment, targetStatus]);
 

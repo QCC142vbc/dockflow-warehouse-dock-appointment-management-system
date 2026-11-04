@@ -20,9 +20,6 @@ export interface User {
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
-}
-
-export interface CurrentUserContext extends User {
   carrier?: {
     id: number;
     company_name: string;
@@ -34,6 +31,8 @@ export interface CurrentUserContext extends User {
     code: string;
   }>;
 }
+
+export type CurrentUserContext = User;
 
 export interface Carrier {
   id: number;
@@ -175,7 +174,7 @@ export interface DashboardMetrics {
   no_show_appointments: number;
   in_progress_appointments: number;
   checked_in_appointments: number;
-  dock_utilization_percent: number;
+  dock_utilization_percent: number | null;
   status_distribution: Record<string, number>;
   daily_volume: DailyVolumeItem[];
   total_docks: number;

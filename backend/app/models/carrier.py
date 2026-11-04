@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Integer, String
+from sqlalchemy import Boolean, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base, UTCDateTime
@@ -9,9 +9,20 @@ from app.core.database import Base, UTCDateTime
 class Carrier(Base):
     __tablename__ = "carriers"
 
+    __table_args__ = (
+        UniqueConstraint("external_carrier_id", name="uq_external_carrier_id"),
+    )
+
     id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
+        index=True,
+    )
+
+    # External UUID for cross-system references (DockFlow Operations)
+    external_carrier_id: Mapped[str | None] = mapped_column(
+        String(36),
+        nullable=True,
         index=True,
     )
 

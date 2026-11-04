@@ -29,10 +29,11 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   const [dockId, setDockId] = useState<number | ''>('');
   const [startDate, setStartDate] = useState('');
   const [startTime, setStartTime] = useState('');
-  const [durationMinutes, setDurationMinutes] = useState(60);
+  const [endDate, setEndDate] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [vehicleReg, setVehicleReg] = useState('');
-  const [vehicleType, setVehicleType] = useState('Standard Semi-Trailer (40t)');
-  const [cargoType, setCargoType] = useState('General Palletized Goods');
+  const [vehicleType, setVehicleType] = useState('');
+  const [cargoType, setCargoType] = useState('');
   const [cargoDesc, setCargoDesc] = useState('');
   const [cargoWeightKg, setCargoWeightKg] = useState<number | ''>('');
   const [containerNumber, setContainerNumber] = useState('');
@@ -45,6 +46,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
     if (!isOpen) return;
 
     const loadLookups = async () => {
+      setError(null);
       try {
         const [whList, crList] = await Promise.all([
           api.getWarehouses(),
@@ -63,7 +65,8 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
 
           setStartDate(s.toISOString().split('T')[0]);
           setStartTime(s.toTimeString().substring(0, 5));
-          setDurationMinutes(Math.max(30, Math.round((e.getTime() - s.getTime()) / 60000)));
+          setEndDate(e.toISOString().split('T')[0]);
+          setEndTime(e.toTimeString().substring(0, 5));
 
           setVehicleReg(initialAppointment.vehicle_registration);
           setVehicleType(initialAppointment.vehicle_type);
@@ -73,26 +76,22 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
           setContainerNumber(initialAppointment.container_number || '');
           setNotes(initialAppointment.notes || '');
         } else {
-          // Defaults for new appointment
-          if (whList.length > 0) setWarehouseId(whList[0].id);
-
+          setWarehouseId('');
+          setDockId('');
           if (user?.role === 'CARRIER' && user.carrier) {
             setCarrierId(user.carrier.id);
-          } else if (crList.length > 0) {
-            setCarrierId(crList[0].id);
+          } else {
+            setCarrierId('');
           }
-
-          const tomorrow = new Date();
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          setStartDate(tomorrow.toISOString().split('T')[0]);
-          setStartTime('09:00');
-          setDurationMinutes(60);
-
-          setVehicleReg('ABC-123');
-          setVehicleType('Standard Semi-Trailer (40t)');
-          setCargoType('General Palletized Goods');
+          setStartDate('');
+          setStartTime('');
+          setEndDate('');
+          setEndTime('');
+          setVehicleReg('');
+          setVehicleType('');
+          setCargoType('');
           setCargoDesc('');
-          setCargoWeightKg(15000);
+          setCargoWeightKg('');
           setContainerNumber('');
           setNotes('');
         }
@@ -105,9 +104,10 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   }, [isOpen, initialAppointment, user]);
 
   const calculateInterval = () => {
-    if (!startDate || !startTime) return null;
+    if (!startDate || !startTime || !endDate || !endTime) return null;
     const start = new Date(`${startDate}T${startTime}:00`);
-    const end = new Date(start.getTime() + durationMinutes * 60000);
+    const end = new Date(`${endDate}T${endTime}:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return null;
     return {
       scheduled_start: start.toISOString(),
       scheduled_end: end.toISOString(),
@@ -115,13 +115,16 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   };
 
   const handleCheckAvailability = async () => {
-    if (!warehouseId || !startDate || !startTime) {
-      setError('Please select warehouse, date, and start time first.');
+    if (!warehouseId || !startDate || !startTime || !endDate || !endTime) {
+      setError('Please select a warehouse and enter the arrival and departure date and time first.');
       return;
     }
 
     const interval = calculateInterval();
-    if (!interval) return;
+    if (!interval) {
+      setError('Departure must be after arrival.');
+      return;
+    }
 
     setError(null);
     setCheckingDocks(true);
@@ -134,13 +137,10 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
         exclude_appointment_id: initialAppointment?.id,
       });
       setAvailableDocks(docks);
-      if (docks.length > 0) {
-        // Select first available dock if none selected
-        if (!dockId || !docks.some(d => d.id === dockId)) {
-          setDockId(docks[0].id);
-        }
-      } else {
+      if (!docks.some((dock) => dock.id === dockId)) {
         setDockId('');
+      }
+      if (docks.length === 0) {
         setError('No active docks are available for this specific warehouse and time slot.');
       }
     } catch (err: any) {
@@ -154,11 +154,11 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
     setError(null);
     const interval = calculateInterval();
     if (!interval) {
-      setError('Please provide valid date and start time.');
+      setError('Please provide a valid arrival and departure time; departure must be after arrival.');
       return;
     }
 
-    if (!warehouseId || !carrierId || !vehicleReg || !cargoType) {
+    if (!warehouseId || !carrierId || !vehicleReg || !vehicleType || !cargoType) {
       setError('Please complete all required fields (*).');
       return;
     }
@@ -232,12 +232,14 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
             <div className="form-group">
               <label className="form-label">Destination Warehouse *</label>
               <select
+                aria-label="Destination Warehouse *"
                 className="form-select"
                 value={warehouseId}
                 onChange={(e) => setWarehouseId(Number(e.target.value))}
                 disabled={!!initialAppointment}
                 required
               >
+                <option value="">Select a warehouse</option>
                 {warehouses.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name} ({w.code})
@@ -250,12 +252,14 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
             <div className="form-group">
               <label className="form-label">Carrier Company *</label>
               <select
+                aria-label="Carrier Company *"
                 className="form-select"
                 value={carrierId}
                 onChange={(e) => setCarrierId(Number(e.target.value))}
                 disabled={user?.role === 'CARRIER' || !!initialAppointment}
                 required
               >
+                {user?.role !== 'CARRIER' && <option value="">Select a carrier</option>}
                 {carriers.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.company_name} ({c.registration_number})
@@ -272,10 +276,11 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
               <span>Scheduled Time Interval (Half-Open [Start, End))</span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px' }}>
               <div>
-                <label className="form-label">Date *</label>
+                <label className="form-label">Arrival Date *</label>
                 <input
+                  aria-label="Arrival Date *"
                   type="date"
                   className="form-input"
                   value={startDate}
@@ -285,8 +290,9 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
               </div>
 
               <div>
-                <label className="form-label">Start Time *</label>
+                <label className="form-label">Arrival Time *</label>
                 <input
+                  aria-label="Arrival Time *"
                   type="time"
                   className="form-input"
                   value={startTime}
@@ -296,17 +302,27 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
               </div>
 
               <div>
-                <label className="form-label">Duration</label>
-                <select
-                  className="form-select"
-                  value={durationMinutes}
-                  onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                >
-                  <option value={30}>30 Minutes</option>
-                  <option value={60}>60 Minutes (Standard)</option>
-                  <option value={90}>90 Minutes</option>
-                  <option value={120}>120 Minutes (Heavy)</option>
-                </select>
+                <label className="form-label">Departure Date *</label>
+                <input
+                  aria-label="Departure Date *"
+                  type="date"
+                  className="form-input"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="form-label">Departure Time *</label>
+                <input
+                  aria-label="Departure Time *"
+                  type="time"
+                  className="form-input"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  required
+                />
               </div>
             </div>
 
@@ -324,6 +340,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
 
               <div style={{ flex: 1, marginLeft: '16px' }}>
                 <select
+                  aria-label="Dock Assignment"
                   className="form-select"
                   value={dockId}
                   onChange={(e) => setDockId(e.target.value ? Number(e.target.value) : '')}
@@ -345,6 +362,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
             <div className="form-group">
               <label className="form-label">Vehicle Registration Number *</label>
               <input
+                aria-label="Vehicle Registration Number *"
                 type="text"
                 className="form-input"
                 placeholder="e.g. HU-AB-123"
@@ -357,10 +375,13 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
             <div className="form-group">
               <label className="form-label">Vehicle Type *</label>
               <select
+                aria-label="Vehicle Type *"
                 className="form-select"
                 value={vehicleType}
                 onChange={(e) => setVehicleType(e.target.value)}
+                required
               >
+                <option value="">Select a vehicle type</option>
                 <option value="Curtainsider Semi-Trailer (40t)">Curtainsider Semi-Trailer (40t)</option>
                 <option value="Box Truck (18t)">Box Truck (18t)</option>
                 <option value="Reefer Semi-Trailer (-20°C)">Reefer Semi-Trailer (-20°C)</option>
@@ -374,6 +395,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
             <div className="form-group">
               <label className="form-label">Cargo Type *</label>
               <input
+                aria-label="Cargo Type *"
                 type="text"
                 className="form-input"
                 placeholder="e.g. FMCG / Palletized Goods"
@@ -391,6 +413,8 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                 placeholder="e.g. 15000"
                 value={cargoWeightKg}
                 onChange={(e) => setCargoWeightKg(e.target.value ? Number(e.target.value) : '')}
+                min={0.01}
+                step="any"
               />
             </div>
           </div>

@@ -15,7 +15,7 @@ app = FastAPI(
     version=settings.APP_VERSION,
 )
 app.state.limiter = limiter
-app.add_middleware(SlowAPIMiddleware, limiter=limiter)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

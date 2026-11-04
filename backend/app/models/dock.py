@@ -22,11 +22,23 @@ class Dock(Base):
             "warehouse_id",
             name="uq_dock_code_warehouse",
         ),
+        UniqueConstraint(
+            "external_dock_id",
+            name="uq_external_dock_id",
+        ),
     )
 
     id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
+        index=True,
+    )
+
+    # External UUID for cross-system references (DockFlow Operations)
+    external_dock_id: Mapped[str | None] = mapped_column(
+        String(36),
+        nullable=True,
+        unique=True,
         index=True,
     )
 

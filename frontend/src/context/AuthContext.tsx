@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User } from '../types';
+import { CurrentUserContext } from '../types';
 import { api } from '../services/api';
 
 interface AuthContextType {
-  user: User | null;
+  user: CurrentUserContext | null;
   token: string | null;
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
@@ -18,7 +18,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<CurrentUserContext | null>(null);
   const [token, setToken] = useState<string | null>(api.getToken());
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -71,8 +71,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = async () => {
-    await api.logout();
+  const logout = () => {
+    api.logout();
     setToken(null);
     setUser(null);
   };

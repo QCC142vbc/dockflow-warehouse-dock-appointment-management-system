@@ -7,23 +7,30 @@ interface AppointmentDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   appointment: Appointment | null;
+  onDelete?: (appointment: Appointment) => void;
 }
 
 export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   isOpen,
   onClose,
   appointment,
+  onDelete,
 }) => {
   const [events, setEvents] = useState<AppointmentEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
+  const [eventsError, setEventsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen || !appointment) return;
 
     setLoadingEvents(true);
+    setEventsError(null);
     api.getAppointmentEvents(appointment.id)
       .then(setEvents)
-      .catch(() => setEvents([]))
+      .catch((err: unknown) => {
+        setEvents([]);
+        setEventsError(err instanceof Error ? err.message : 'Failed to load appointment history.');
+      })
       .finally(() => setLoadingEvents(false));
   }, [isOpen, appointment]);
 
@@ -174,6 +181,8 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
 
             {loadingEvents ? (
               <div style={{ fontSize: '0.82rem', color: '#64748b' }}>Loading history...</div>
+            ) : eventsError ? (
+              <div className="alert alert-danger" role="alert">{eventsError}</div>
             ) : events.length === 0 ? (
               <div style={{ fontSize: '0.82rem', color: '#94a3b8', fontStyle: 'italic' }}>No logged events recorded.</div>
             ) : (
@@ -216,6 +225,20 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
         </div>
 
         <div className="modal-footer">
+          {onDelete && ['DRAFT', 'PENDING', 'CONFIRMED', 'CHECKED_IN'].includes(appointment.status) && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ color: '#dc2626', marginRight: 'auto' }}
+              onClick={() => {
+                if (window.confirm(`Cancel appointment ${appointment.reference_number}? Its audit history will be retained.`)) {
+                  onDelete(appointment);
+                }
+              }}
+            >
+              Cancel Appointment
+            </button>
+          )}
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Close
           </button>

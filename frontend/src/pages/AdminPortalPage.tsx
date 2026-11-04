@@ -36,6 +36,8 @@ export const AdminPortalPage: React.FC = () => {
 
   // New Warehouse Form State
   const [showWhModal, setShowWhModal] = useState(false);
+  const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
+  const [warehouseSearch, setWarehouseSearch] = useState('');
   const [whName, setWhName] = useState('');
   const [whCode, setWhCode] = useState('');
   const [whAddress, setWhAddress] = useState('');
@@ -147,10 +149,22 @@ export const AdminPortalPage: React.FC = () => {
     }
   };
 
-  const handleCreateWarehouse = async (e: React.FormEvent) => {
+  const openWarehouseForm = (warehouse: Warehouse | null) => {
+    setEditingWarehouse(warehouse);
+    setWhName(warehouse?.name ?? '');
+    setWhCode(warehouse?.code ?? '');
+    setWhAddress(warehouse?.address ?? '');
+    setWhCity(warehouse?.city ?? '');
+    setWhPostal(warehouse?.postal_code ?? '');
+    setWhCountry(warehouse?.country ?? 'Hungary');
+    setWhTimezone(warehouse?.timezone ?? 'Europe/Budapest');
+    setShowWhModal(true);
+  };
+
+  const handleSaveWarehouse = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.createWarehouse({
+      const values = {
         name: whName,
         code: whCode,
         address: whAddress,
@@ -158,8 +172,14 @@ export const AdminPortalPage: React.FC = () => {
         postal_code: whPostal,
         country: whCountry,
         timezone: whTimezone,
-      });
+      };
+      if (editingWarehouse) {
+        await api.updateWarehouse(editingWarehouse.id, values);
+      } else {
+        await api.createWarehouse(values);
+      }
       setShowWhModal(false);
+      setEditingWarehouse(null);
       setWhName('');
       setWhCode('');
       setWhAddress('');
@@ -168,6 +188,18 @@ export const AdminPortalPage: React.FC = () => {
       loadData();
     } catch (err: any) {
       alert(err.message || 'Failed to create warehouse');
+    }
+  };
+
+  const handleToggleWarehouse = async (warehouse: Warehouse) => {
+    const action = warehouse.is_active ? 'deactivate' : 'reactivate';
+    if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} ${warehouse.name}? Existing appointments and audit history will be retained.`)) return;
+    try {
+      if (warehouse.is_active) await api.deleteWarehouse(warehouse.id);
+      else await api.updateWarehouse(warehouse.id, { is_active: true });
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || `Failed to ${action} warehouse`);
     }
   };
 
@@ -310,13 +342,22 @@ export const AdminPortalPage: React.FC = () => {
         <div className="card">
           <div className="card-title">
             <span>Distribution Centers & Warehouses</span>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowWhModal(true)}>
+            <button className="btn btn-primary btn-sm" onClick={() => openWarehouseForm(null)}>
               <Plus size={14} />
               <span>New Warehouse</span>
             </button>
           </div>
 
           <div className="table-container">
+            <input
+              type="search"
+              className="form-input"
+              aria-label="Search warehouses"
+              placeholder="Search by name, code, or city"
+              value={warehouseSearch}
+              onChange={(event) => setWarehouseSearch(event.target.value)}
+              style={{ maxWidth: '360px', marginBottom: '12px' }}
+            />
             <table className="data-table">
               <thead>
                 <tr>
@@ -326,10 +367,11 @@ export const AdminPortalPage: React.FC = () => {
                   <th>Address</th>
                   <th>Timezone</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {warehouses.map((w) => (
+                {warehouses.filter((warehouse) => `${warehouse.name} ${warehouse.code} ${warehouse.city}`.toLowerCase().includes(warehouseSearch.toLowerCase())).map((w) => (
                   <tr key={w.id}>
                     <td><strong style={{ color: '#0284c7' }}>{w.code}</strong></td>
                     <td style={{ fontWeight: 600 }}>{w.name}</td>
@@ -341,8 +383,17 @@ export const AdminPortalPage: React.FC = () => {
                         {w.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
+                    <td>
+                      <button className="btn btn-secondary btn-sm" onClick={() => openWarehouseForm(w)}>Edit</button>
+                      <button className="btn btn-secondary btn-sm" style={{ marginLeft: 6 }} onClick={() => handleToggleWarehouse(w)}>
+                        {w.is_active ? 'Deactivate' : 'Reactivate'}
+                      </button>
+                    </td>
                   </tr>
                 ))}
+                {warehouses.filter((warehouse) => `${warehouse.name} ${warehouse.code} ${warehouse.city}`.toLowerCase().includes(warehouseSearch.toLowerCase())).length === 0 && (
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28, color: '#64748b' }}>No warehouses match this search. Add a warehouse to begin.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -580,10 +631,10 @@ export const AdminPortalPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '480px' }}>
             <div className="modal-header">
-              <h3>Register Warehouse Hub</h3>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowWhModal(false)}><XCircle size={16} /></button>
+              <h3>{editingWarehouse ? 'Edit Warehouse Hub' : 'Register Warehouse Hub'}</h3>
+              <button className="btn btn-secondary btn-sm" onClick={() => { setShowWhModal(false); setEditingWarehouse(null); }}><XCircle size={16} /></button>
             </div>
-            <form onSubmit={handleCreateWarehouse}>
+            <form onSubmit={handleSaveWarehouse}>
               <div className="modal-body">
                 <div className="form-group">
                   <label className="form-label">Warehouse Code *</label>
@@ -607,10 +658,20 @@ export const AdminPortalPage: React.FC = () => {
                     <input type="text" className="form-input" required value={whPostal} onChange={(e) => setWhPostal(e.target.value)} />
                   </div>
                 </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Country *</label>
+                    <input type="text" className="form-input" required value={whCountry} onChange={(e) => setWhCountry(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Timezone *</label>
+                    <input type="text" className="form-input" required value={whTimezone} onChange={(e) => setWhTimezone(e.target.value)} />
+                  </div>
+                </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowWhModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Create Warehouse</button>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowWhModal(false); setEditingWarehouse(null); }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">{editingWarehouse ? 'Save Changes' : 'Create Warehouse'}</button>
               </div>
             </form>
           </div>

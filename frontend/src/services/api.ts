@@ -40,6 +40,10 @@ class ApiClient {
     return this.token;
   }
 
+  logout(): void {
+    this.setToken(null);
+  }
+
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = {
       ...(options.headers as Record<string, string>),
@@ -178,6 +182,10 @@ class ApiClient {
     });
   }
 
+  async deleteAppointment(id: number): Promise<Appointment> {
+    return this.request<Appointment>(`/appointments/${id}`, { method: 'DELETE' });
+  }
+
   // --- Warehouses ---
   async getWarehouses(): Promise<Warehouse[]> {
     return this.request<Warehouse[]>('/warehouses/');
@@ -199,6 +207,10 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+  }
+
+  async deleteWarehouse(id: number): Promise<void> {
+    return this.request<void>(`/warehouses/${id}`, { method: 'DELETE' });
   }
 
   // --- Docks ---
@@ -243,6 +255,10 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+  }
+
+  async deleteDock(id: number): Promise<void> {
+    return this.request<void>(`/docks/${id}`, { method: 'DELETE' });
   }
 
   async getDockCapabilities(dockId: number): Promise<DockCapability[]> {

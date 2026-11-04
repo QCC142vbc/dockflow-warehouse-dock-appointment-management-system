@@ -15,9 +15,10 @@ import {
 
 interface DashboardPageProps {
   onOpenAppointment: (appt: Appointment) => void;
+  onOpenAdmin?: () => void;
 }
 
-export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAppointment }) => {
+export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAppointment, onOpenAdmin }) => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | ''>('');
@@ -90,7 +91,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAppointment 
       )}
 
       {/* Metrics Row 1 */}
-      {metrics && (
+      {metrics && metrics.total_appointments > 0 && (
         <>
           <div className="metrics-grid">
             <div className="metric-card">
@@ -133,11 +134,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAppointment 
 
             <div className="metric-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="metric-label">Dock Utilization</span>
+                <span className="metric-label">Calendar Dock Utilization</span>
                 <Percent size={18} color="#8b5cf6" />
               </div>
               <div className="metric-value" style={{ color: '#7c3aed' }}>
-                {metrics.dock_utilization_percent}%
+                {metrics.dock_utilization_percent === null ? 'Unavailable' : `${metrics.dock_utilization_percent}%`}
               </div>
             </div>
           </div>
@@ -193,7 +194,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAppointment 
             <div className="card-title">
               <span>Daily Appointment Volume</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px', height: '140px', padding: '10px 0 20px', borderBottom: '1px solid #e2e8f0' }}>
+            {metrics.daily_volume.length === 0 ? (
+              <p style={{ color: '#64748b' }}>No dated appointments are available for this chart.</p>
+            ) : <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px', height: '140px', padding: '10px 0 20px', borderBottom: '1px solid #e2e8f0' }}>
               {metrics.daily_volume.map((item) => {
                 const maxCount = Math.max(1, ...metrics.daily_volume.map((v) => v.count));
                 const heightPct = Math.max(8, Math.round((item.count / maxCount) * 100));
@@ -228,9 +231,34 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenAppointment 
                   </div>
                 );
               })}
-            </div>
+            </div>}
           </div>
         </>
+      )}
+
+      {metrics && metrics.total_appointments === 0 && (
+        <div className="card" style={{ textAlign: 'center', padding: '30px', marginBottom: '24px' }}>
+          <Calendar size={28} color="#0284c7" />
+          <h3>No appointments recorded yet</h3>
+          <p style={{ color: '#64748b' }}>
+            {metrics.total_warehouses === 0
+              ? 'Register a warehouse and its docks before entering appointments.'
+              : 'Appointments and dashboard activity will appear here after users enter them.'}
+          </p>
+          {onOpenAdmin && <button className="btn btn-primary" onClick={onOpenAdmin}>Add Warehouse</button>}
+        </div>
+      )}
+
+      {metrics && (
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div className="card-title"><span>Registered Infrastructure</span></div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20 }}>
+            <span>Active warehouses: <strong>{metrics.total_warehouses}</strong></span>
+            <span>Total docks: <strong>{metrics.total_docks}</strong></span>
+            <span>Active docks: <strong>{metrics.active_docks}</strong></span>
+          </div>
+          {metrics.dock_utilization_percent === null && <small style={{ display: 'block', marginTop: 10, color: '#64748b' }}>Dock utilization is unavailable until active dock capacity and schedulable time data are available.</small>}
+        </div>
       )}
 
       {/* Recent Appointments Table */}
