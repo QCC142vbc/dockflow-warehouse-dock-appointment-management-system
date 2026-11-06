@@ -88,6 +88,7 @@ class AppointmentStatusUpdate(BaseModel):
 
 class AppointmentResponse(AppointmentBase):
     id: int
+    appointment_id: str
     reference_number: str
     carrier_id: int
     created_by: int
