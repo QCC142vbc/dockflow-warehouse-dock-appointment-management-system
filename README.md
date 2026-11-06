@@ -258,36 +258,38 @@ alembic upgrade head
 - `GET /api/v1/users` - List users
 - `POST /api/v1/users` - Create user
 - `GET /api/v1/users/{id}` - Get user by ID
-- `PUT /api/v1/users/{id}` - Update user
+- `PATCH /api/v1/users/{id}` - Update user
 - `DELETE /api/v1/users/{id}` - Delete user
 
 ### Carriers
 - `GET /api/v1/carriers` - List carriers
 - `POST /api/v1/carriers` - Create carrier
 - `GET /api/v1/carriers/{id}` - Get carrier by ID
-- `PUT /api/v1/carriers/{id}` - Update carrier
+- `PATCH /api/v1/carriers/{id}` - Update carrier
 - `DELETE /api/v1/carriers/{id}` - Delete carrier
 
 ### Warehouses
 - `GET /api/v1/warehouses` - List warehouses
 - `POST /api/v1/warehouses` - Create warehouse
 - `GET /api/v1/warehouses/{id}` - Get warehouse by ID
-- `PUT /api/v1/warehouses/{id}` - Update warehouse
+- `PATCH /api/v1/warehouses/{id}` - Update warehouse
 - `DELETE /api/v1/warehouses/{id}` - Delete warehouse
 
 ### Docks
 - `GET /api/v1/docks` - List docks
 - `POST /api/v1/docks` - Create dock
 - `GET /api/v1/docks/{id}` - Get dock by ID
-- `PUT /api/v1/docks/{id}` - Update dock
+- `PATCH /api/v1/docks/{id}` - Update dock
 - `DELETE /api/v1/docks/{id}` - Delete dock
 
 ### Appointments
 - `GET /api/v1/appointments` - List appointments
 - `POST /api/v1/appointments` - Create appointment
 - `GET /api/v1/appointments/{id}` - Get appointment by ID
-- `PUT /api/v1/appointments/{id}` - Update appointment
-- `DELETE /api/v1/appointments/{id}` - Delete appointment
+- `PATCH /api/v1/appointments/{id}` - Update appointment
+- `DELETE /api/v1/appointments/{id}` - Cancel appointment while retaining its history
+
+Appointment responses include the stable `appointment_id` used to link a planned appointment with its corresponding DockFlow Operations record.
 
 ### Dock Unavailability
 - `GET /api/v1/dock-unavailability` - List dock unavailability records

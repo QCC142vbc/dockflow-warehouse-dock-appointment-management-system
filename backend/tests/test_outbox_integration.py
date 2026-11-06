@@ -100,3 +100,35 @@ def test_outbox_event_creation_and_worker_dispatch(client, db, admin_token, monk
     db.refresh(event)
     assert event.status == "PUBLISHED"
     assert event.published_at is not None
+
+    update_response = client.patch(
+        f"/api/v1/appointments/{res.json()['id']}",
+        json={
+            "scheduled_start": "2026-10-20T11:00:00+00:00",
+            "scheduled_end": "2026-10-20T12:30:00+00:00",
+            "vehicle_registration": "OBX-TRUCK-02",
+            "vehicle_type": "Refrigerated truck",
+            "cargo_type": "Chilled goods",
+            "cargo_weight_kg": 8500,
+        },
+        headers=headers,
+    )
+    assert update_response.status_code == 200
+
+    update_event = (
+        db.query(EventOutbox)
+        .filter(EventOutbox.event_type == "appointment.updated")
+        .one()
+    )
+    assert update_event.status == "PENDING"
+    assert update_event.payload["appointment_id"] == res.json()["appointment_id"]
+    assert update_event.payload["scheduled_end"] == "2026-10-20T12:30:00+00:00"
+    assert update_event.payload["vehicle_type"] == "Refrigerated truck"
+    assert update_event.payload["cargo_weight_kg"] == 8500
+
+    update_client = MockHttpClient(status_code=201)
+    assert process_pending_outbox_events(db, update_client) == 1
+    assert update_client.posted[0]["url"].endswith("/sync/appointment")
+    assert update_client.posted[0]["payload"] == update_event.payload
+    db.refresh(update_event)
+    assert update_event.status == "PUBLISHED"

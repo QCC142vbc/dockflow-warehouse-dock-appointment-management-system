@@ -75,6 +75,30 @@ def to_response_dto(db: Session, appointment: Appointment) -> AppointmentRespons
     return resp
 
 
+def to_operations_sync_payload(
+    db: Session,
+    appointment: Appointment,
+    carrier: Carrier,
+    warehouse: Warehouse,
+) -> dict:
+    dock = db.get(Dock, appointment.dock_id) if appointment.dock_id else None
+    return {
+        "appointment_id": appointment.appointment_id,
+        "reference_number": appointment.reference_number,
+        "external_carrier_id": carrier.external_carrier_id,
+        "external_warehouse_id": warehouse.external_warehouse_id,
+        "external_dock_id": dock.external_dock_id if dock else None,
+        "carrier_name": carrier.company_name,
+        "scheduled_start": appointment.scheduled_start.isoformat(),
+        "scheduled_end": appointment.scheduled_end.isoformat(),
+        "status": appointment.status,
+        "vehicle_registration": appointment.vehicle_registration,
+        "vehicle_type": appointment.vehicle_type,
+        "cargo_type": appointment.cargo_type,
+        "cargo_weight_kg": appointment.cargo_weight_kg,
+    }
+
+
 def get_accessible_appointment(
     appointment_id: int,
     db: Session,
@@ -461,20 +485,7 @@ def create_appointment(
         emit_outbox_event(
             db=db,
             event_type="appointment.created",
-            payload={
-                "appointment_id": new_appointment.appointment_id,
-                "reference_number": reference_number,
-                "external_carrier_id": carrier.external_carrier_id if carrier else None,
-                "carrier_name": carrier.company_name,
-                "external_warehouse_id": warehouse.external_warehouse_id if warehouse else None,
-                "scheduled_start": new_appointment.scheduled_start.isoformat(),
-                "scheduled_end": new_appointment.scheduled_end.isoformat(),
-                "status": initial_status,
-                "vehicle_registration": new_appointment.vehicle_registration,
-                "vehicle_type": new_appointment.vehicle_type,
-                "cargo_type": new_appointment.cargo_type,
-                "cargo_weight_kg": new_appointment.cargo_weight_kg,
-            },
+            payload=to_operations_sync_payload(db, new_appointment, carrier, warehouse),
         )
 
         db.commit()
@@ -579,6 +590,20 @@ def update_appointment(
             old_values=old_values,
             new_values=update_data,
         )
+
+        if update_data:
+            carrier = db.get(Carrier, appointment.carrier_id)
+            warehouse = db.get(Warehouse, appointment.warehouse_id)
+            if carrier is None or warehouse is None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Appointment references required for Operations sync are unavailable.",
+                )
+            emit_outbox_event(
+                db=db,
+                event_type="appointment.updated",
+                payload=to_operations_sync_payload(db, appointment, carrier, warehouse),
+            )
 
         db.commit()
         db.refresh(appointment)
