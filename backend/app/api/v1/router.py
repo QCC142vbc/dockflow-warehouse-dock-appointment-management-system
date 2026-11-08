@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     dock_unavailability,
     dashboard,
     audit_logs,
+    integration_yms,
 )
 
 
@@ -68,4 +69,11 @@ api_router.include_router(
     audit_logs.router,
     prefix="/audit-logs",
     tags=["Audit Logs"],
-)
+)
+
+
+api_router.include_router(
+    integration_yms.router,
+    prefix="/integration/yms",
+    tags=["YMS Integration"],
+)

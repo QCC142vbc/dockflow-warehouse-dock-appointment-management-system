@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     SERVICE_AUTH_TOKEN_EXPIRE_SECONDS: int = 300
     SERVICE_AUTH_ISSUER: str = "dock-appointment-scheduling"
     SERVICE_AUTH_AUDIENCE: str = "dockflow-operations"
+    YMS_SERVICE_AUTH_SECRET: str | None = None
+    YMS_SERVICE_AUTH_ISSUER: str = "dockflow-yms"
+    YMS_SERVICE_AUTH_AUDIENCE: str = "dock-appointment-scheduling"
     
     JWT_ISSUER: str = "dock-appointment-scheduling"
     JWT_AUDIENCE: str = "dock-appointment-api"
@@ -38,6 +41,16 @@ class Settings(BaseSettings):
         secret = value.strip()
         if not secret or len(secret) < 32:
             raise ValueError("SERVICE_AUTH_SECRET must be at least 32 characters.")
+        return secret
+
+    @field_validator("YMS_SERVICE_AUTH_SECRET")
+    @classmethod
+    def validate_yms_service_auth_secret(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        secret = value.strip()
+        if not secret or len(secret) < 32:
+            raise ValueError("YMS_SERVICE_AUTH_SECRET must be at least 32 characters.")
         return secret
 
     model_config = SettingsConfigDict(

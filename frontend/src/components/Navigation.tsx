@@ -9,6 +9,7 @@ import {
   LogOut,
   Clock,
   ClipboardList,
+  MapPin,
 } from 'lucide-react';
 
 export type ActiveTab = 'dashboard' | 'carrier' | 'warehouse' | 'admin';
@@ -83,6 +84,21 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
               <CalendarDays size={18} />
               <span>Warehouse Portal</span>
             </button>
+          </>
+        )}
+
+        {(isWarehouseUser || isAdmin) && (
+          <>
+            <div className="nav-section-title">Yard Operations</div>
+            <a
+              className="nav-item"
+              href={import.meta.env.VITE_YMS_APP_URL || 'http://localhost:5177'}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <MapPin size={18} />
+              <span>Yard Management</span>
+            </a>
           </>
         )}
 

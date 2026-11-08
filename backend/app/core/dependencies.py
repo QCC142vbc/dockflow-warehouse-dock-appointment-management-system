@@ -1,5 +1,5 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,45 @@ from app.models.user import User
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/api/v1/auth/login",
 )
+yms_service_bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def require_yms_service_auth(
+    credentials: HTTPAuthorizationCredentials | None = Depends(yms_service_bearer_scheme),
+) -> None:
+    if not settings.YMS_SERVICE_AUTH_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="YMS service integration is not configured.",
+        )
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="YMS service authentication is required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    try:
+        payload = jwt.decode(
+            credentials.credentials,
+            settings.YMS_SERVICE_AUTH_SECRET,
+            algorithms=[ALGORITHM],
+            issuer=settings.YMS_SERVICE_AUTH_ISSUER,
+            audience=settings.YMS_SERVICE_AUTH_AUDIENCE,
+        )
+    except (JWTError, ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired YMS service credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if (
+        payload.get("sub") != settings.YMS_SERVICE_AUTH_ISSUER
+        or payload.get("scope") != "yms:read"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="YMS service credentials do not grant read access.",
+        )
 
 
 def get_current_user(
