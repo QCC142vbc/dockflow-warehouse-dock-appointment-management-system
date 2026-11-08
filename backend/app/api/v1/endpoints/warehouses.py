@@ -13,9 +13,22 @@ from app.schemas.warehouse import (
     WarehouseResponse,
 )
 from app.services.audit import log_audit
+from app.services.external_refs import external_reference
+from app.services.outbox import emit_outbox_event
 
 
 router = APIRouter()
+
+
+def warehouse_sync_payload(warehouse: Warehouse) -> dict:
+    return {
+        "external_warehouse_id": external_reference(warehouse, "warehouse"),
+        "name": warehouse.name,
+        "code": warehouse.code,
+        "timezone": warehouse.timezone,
+        "is_active": warehouse.is_active,
+        "sync_version": 1,
+    }
 
 
 @router.get(
@@ -118,6 +131,12 @@ def create_warehouse(
         new_values=warehouse_data.model_dump(),
     )
 
+    emit_outbox_event(
+        db=db,
+        event_type="warehouse.created",
+        payload=warehouse_sync_payload(new_warehouse),
+    )
+
     db.commit()
     db.refresh(new_warehouse)
 
@@ -173,6 +192,12 @@ def update_warehouse(
         new_values=update_data,
     )
 
+    emit_outbox_event(
+        db=db,
+        event_type="warehouse.updated",
+        payload=warehouse_sync_payload(warehouse),
+    )
+
     db.commit()
     db.refresh(warehouse)
 
@@ -202,6 +227,11 @@ def deactivate_warehouse(
             description=f"Deactivated warehouse {warehouse.name} ({warehouse.code})",
             old_values={"is_active": True},
             new_values={"is_active": False},
+        )
+        emit_outbox_event(
+            db=db,
+            event_type="warehouse.updated",
+            payload=warehouse_sync_payload(warehouse),
         )
         db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

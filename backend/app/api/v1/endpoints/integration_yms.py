@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -8,15 +8,9 @@ from app.models.appointment import Appointment
 from app.models.carrier import Carrier
 from app.models.dock import Dock
 from app.models.warehouse import Warehouse
+from app.services.external_refs import external_reference
 
 router = APIRouter(dependencies=[Depends(require_yms_service_auth)])
-
-
-def external_reference(record, kind: str) -> str:
-    value = getattr(record, f"external_{kind}_id", None)
-    if value:
-        return str(value)
-    return f"scheduling:{kind}:{record.id}"
 
 
 @router.get("/appointments/{appointment_id}")
@@ -27,6 +21,12 @@ def get_appointment_reference(
     appointment = db.scalar(
         select(Appointment).where(Appointment.appointment_id == appointment_id)
     )
+    if appointment is None:
+        appointment = db.scalar(
+            select(Appointment).where(
+                func.upper(Appointment.reference_number) == appointment_id.strip().upper()
+            )
+        )
     if appointment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found.")
     warehouse = db.get(Warehouse, appointment.warehouse_id)

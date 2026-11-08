@@ -27,6 +27,7 @@ def dispatch_event(client: httpx.Client, event: EventOutbox) -> bool:
     url_map = {
         "appointment.created": f"{OPERATIONS_API_BASE}/sync/appointment",
         "appointment.updated": f"{OPERATIONS_API_BASE}/sync/appointment",
+        "appointment.status_changed": f"{OPERATIONS_API_BASE}/sync/appointment",
         "warehouse.created": f"{OPERATIONS_API_BASE}/sync/warehouse",
         "warehouse.updated": f"{OPERATIONS_API_BASE}/sync/warehouse",
         "dock.created": f"{OPERATIONS_API_BASE}/sync/dock",

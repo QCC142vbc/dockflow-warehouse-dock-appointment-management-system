@@ -13,9 +13,23 @@ from app.schemas.carrier import (
     CarrierResponse,
 )
 from app.services.audit import log_audit
+from app.services.external_refs import external_reference
+from app.services.outbox import emit_outbox_event
 
 
 router = APIRouter()
+
+
+def carrier_sync_payload(carrier: Carrier) -> dict:
+    return {
+        "external_carrier_id": external_reference(carrier, "carrier"),
+        "company_name": carrier.company_name,
+        "registration_number": carrier.registration_number,
+        "contact_email": carrier.contact_email,
+        "country": carrier.country,
+        "is_active": carrier.is_active,
+        "sync_version": 1,
+    }
 
 
 @router.get(
@@ -124,6 +138,12 @@ def create_carrier(
         new_values=carrier_data.model_dump(),
     )
 
+    emit_outbox_event(
+        db=db,
+        event_type="carrier.created",
+        payload=carrier_sync_payload(new_carrier),
+    )
+
     db.commit()
     db.refresh(new_carrier)
 
@@ -180,6 +200,12 @@ def update_carrier(
         description=f"Updated carrier {carrier.company_name}",
         old_values=old_values,
         new_values=update_data,
+    )
+
+    emit_outbox_event(
+        db=db,
+        event_type="carrier.updated",
+        payload=carrier_sync_payload(carrier),
     )
 
     db.commit()

@@ -30,6 +30,7 @@ class WarehouseUpdate(BaseModel):
 
 class WarehouseResponse(WarehouseBase):
     id: int
+    external_warehouse_id: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

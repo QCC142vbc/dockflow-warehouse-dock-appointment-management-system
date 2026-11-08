@@ -27,6 +27,7 @@ class DockUpdate(BaseModel):
 
 class DockResponse(DockBase):
     id: int
+    external_dock_id: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

@@ -25,6 +25,7 @@ from app.schemas.appointment import (
 )
 from app.schemas.appointment_event import AppointmentEventResponse
 from app.services.audit import log_audit
+from app.services.external_refs import external_reference
 from app.services.outbox import emit_outbox_event
 from app.services.scheduling_engine import (
     BLOCKING_STATUSES,
@@ -85,18 +86,48 @@ def to_operations_sync_payload(
     return {
         "appointment_id": appointment.appointment_id,
         "reference_number": appointment.reference_number,
-        "external_carrier_id": carrier.external_carrier_id,
-        "external_warehouse_id": warehouse.external_warehouse_id,
-        "external_dock_id": dock.external_dock_id if dock else None,
+        "external_carrier_id": external_reference(carrier, "carrier"),
+        "external_warehouse_id": external_reference(warehouse, "warehouse"),
+        "external_dock_id": external_reference(dock, "dock") if dock else None,
         "carrier_name": carrier.company_name,
+        "carrier_registration_number": carrier.registration_number,
+        "carrier_contact_email": carrier.contact_email,
+        "carrier_is_active": carrier.is_active,
+        "warehouse_name": warehouse.name,
+        "warehouse_code": warehouse.code,
+        "warehouse_timezone": warehouse.timezone,
+        "warehouse_is_active": warehouse.is_active,
+        "dock_code": dock.dock_code if dock else None,
+        "dock_name": dock.name if dock else None,
+        "dock_is_active": dock.is_active if dock else None,
         "scheduled_start": appointment.scheduled_start.isoformat(),
         "scheduled_end": appointment.scheduled_end.isoformat(),
         "status": appointment.status,
         "vehicle_registration": appointment.vehicle_registration,
         "vehicle_type": appointment.vehicle_type,
         "cargo_type": appointment.cargo_type,
+        "cargo_description": appointment.cargo_description,
         "cargo_weight_kg": appointment.cargo_weight_kg,
     }
+
+
+def emit_appointment_status_event(
+    db: Session,
+    appointment: Appointment,
+    previous_status: str,
+) -> None:
+    carrier = db.get(Carrier, appointment.carrier_id)
+    warehouse = db.get(Warehouse, appointment.warehouse_id)
+    if carrier is None or warehouse is None:
+        return
+    payload = to_operations_sync_payload(db, appointment, carrier, warehouse)
+    payload["previous_status"] = previous_status
+    payload["status_changed_at"] = appointment.updated_at.isoformat()
+    emit_outbox_event(
+        db=db,
+        event_type="appointment.status_changed",
+        payload=payload,
+    )
 
 
 def get_accessible_appointment(
@@ -363,6 +394,7 @@ def cancel_appointment(
         old_values={"status": previous_status},
         new_values={"status": AppointmentStatus.CANCELLED.value},
     )
+    emit_appointment_status_event(db, appointment, previous_status)
     db.commit()
     db.refresh(appointment)
     return to_response_dto(db, appointment)
@@ -748,6 +780,8 @@ def update_appointment_status(
             old_values={"status": old_status},
             new_values={"status": new_status, "dock_id": appointment.dock_id, "reason": status_data.reason},
         )
+
+        emit_appointment_status_event(db, appointment, old_status)
 
         db.commit()
         db.refresh(appointment)

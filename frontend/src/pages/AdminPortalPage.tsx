@@ -20,6 +20,7 @@ export const AdminPortalPage: React.FC = () => {
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   // New User Form State
   const [showUserModal, setShowUserModal] = useState(false);
@@ -46,33 +47,52 @@ export const AdminPortalPage: React.FC = () => {
   const [whCountry, setWhCountry] = useState('Hungary');
   const [whTimezone, setWhTimezone] = useState('Europe/Budapest');
 
-  // New Carrier Form State
+  // Carrier Form State
   const [showCarrierModal, setShowCarrierModal] = useState(false);
+  const [editingCarrier, setEditingCarrier] = useState<Carrier | null>(null);
   const [carrierName, setCarrierName] = useState('');
   const [carrierReg, setCarrierReg] = useState('');
   const [carrierEmail, setCarrierEmail] = useState('');
   const [carrierPhone, setCarrierPhone] = useState('');
-  const [carrierCountry, setCarrierCountry] = useState('Hungary');
+  const [carrierCountry, setCarrierCountry] = useState('');
 
   const loadData = async () => {
     setLoading(true);
+    setLoadError('');
+    const failures: string[] = [];
+    const attempt = async <T,>(label: string, request: () => Promise<T>): Promise<T | null> => {
+      try {
+        return await request();
+      } catch {
+        failures.push(label);
+        return null;
+      }
+    };
     try {
       if (activeTab === 'users') {
-        const [uList, wList, cList] = await Promise.all([api.getUsers(), api.getWarehouses(), api.getCarriers()]);
-        setUsers(uList);
-        setWarehouses(wList);
-        setCarriers(cList);
+        const [uList, wList, cList] = await Promise.all([
+          attempt('users', api.getUsers),
+          attempt('warehouses', api.getWarehouses),
+          attempt('carriers', api.getCarriers),
+        ]);
+        if (uList) setUsers(uList);
+        if (wList) setWarehouses(wList);
+        if (cList) setCarriers(cList);
       } else if (activeTab === 'warehouses') {
-        setWarehouses(await api.getWarehouses());
+        const result = await attempt('warehouses', api.getWarehouses);
+        if (result) setWarehouses(result);
       } else if (activeTab === 'carriers') {
-        setCarriers(await api.getCarriers());
+        const result = await attempt('carriers', api.getCarriers);
+        if (result) setCarriers(result);
       } else if (activeTab === 'audit') {
-        setAuditLogs(await api.getAuditLogs({ limit: 100 }));
+        const result = await attempt('audit logs', () => api.getAuditLogs({ limit: 100 }));
+        if (result) setAuditLogs(result);
       }
-    } catch (err: any) {
-      alert(err.message || 'Failed to load administration data');
     } finally {
       setLoading(false);
+      if (failures.length > 0) {
+        setLoadError(`Failed to load: ${failures.join(', ')}. The remaining sections are shown; use Refresh to retry.`);
+      }
     }
   };
 
@@ -203,24 +223,41 @@ export const AdminPortalPage: React.FC = () => {
     }
   };
 
-  const handleCreateCarrier = async (e: React.FormEvent) => {
+  const openCarrierForm = (carrier: Carrier | null) => {
+    setEditingCarrier(carrier);
+    setCarrierName(carrier?.company_name ?? '');
+    setCarrierReg(carrier?.registration_number ?? '');
+    setCarrierEmail(carrier?.contact_email ?? '');
+    setCarrierPhone(carrier?.contact_phone ?? '');
+    setCarrierCountry(carrier?.country ?? '');
+    setShowCarrierModal(true);
+  };
+
+  const handleSaveCarrier = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.createCarrier({
+      const values = {
         company_name: carrierName,
         registration_number: carrierReg,
         contact_email: carrierEmail,
         contact_phone: carrierPhone,
         country: carrierCountry,
-      });
+      };
+      if (editingCarrier) {
+        await api.updateCarrier(editingCarrier.id, values);
+      } else {
+        await api.createCarrier(values);
+      }
       setShowCarrierModal(false);
+      setEditingCarrier(null);
       setCarrierName('');
       setCarrierReg('');
       setCarrierEmail('');
       setCarrierPhone('');
+      setCarrierCountry('');
       loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to create carrier');
+      alert(err.message || 'Failed to save carrier');
     }
   };
 
@@ -239,6 +276,12 @@ export const AdminPortalPage: React.FC = () => {
           <span>Refresh</span>
         </button>
       </div>
+
+      {loadError && (
+        <div role="alert" style={{ marginBottom: '16px', padding: '10px 14px', borderRadius: '6px', border: '1px solid #f59e0b', background: '#fffbeb', color: '#92400e', fontSize: '0.84rem' }}>
+          {loadError}
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', marginBottom: '20px', paddingBottom: '2px' }}>
@@ -405,7 +448,7 @@ export const AdminPortalPage: React.FC = () => {
         <div className="card">
           <div className="card-title">
             <span>Registered Carrier Logistics Companies</span>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowCarrierModal(true)}>
+            <button className="btn btn-primary btn-sm" onClick={() => openCarrierForm(null)}>
               <Plus size={14} />
               <span>New Carrier</span>
             </button>
@@ -421,6 +464,7 @@ export const AdminPortalPage: React.FC = () => {
                   <th>Phone</th>
                   <th>Country</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -435,6 +479,9 @@ export const AdminPortalPage: React.FC = () => {
                       <span style={{ color: c.is_active ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
                         {c.is_active ? 'Active' : 'Inactive'}
                       </span>
+                    </td>
+                    <td>
+                      <button className="btn btn-secondary btn-sm" onClick={() => openCarrierForm(c)}>Edit</button>
                     </td>
                   </tr>
                 ))}
@@ -678,15 +725,15 @@ export const AdminPortalPage: React.FC = () => {
         </div>
       )}
 
-      {/* New Carrier Modal */}
+      {/* Carrier Modal */}
       {showCarrierModal && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '480px' }}>
             <div className="modal-header">
-              <h3>Register Carrier Partner</h3>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowCarrierModal(false)}><XCircle size={16} /></button>
+              <h3>{editingCarrier ? 'Edit Carrier Partner' : 'Register Carrier Partner'}</h3>
+              <button className="btn btn-secondary btn-sm" onClick={() => { setShowCarrierModal(false); setEditingCarrier(null); }}><XCircle size={16} /></button>
             </div>
-            <form onSubmit={handleCreateCarrier}>
+            <form onSubmit={handleSaveCarrier}>
               <div className="modal-body">
                 <div className="form-group">
                   <label className="form-label">Company Name *</label>
@@ -704,10 +751,14 @@ export const AdminPortalPage: React.FC = () => {
                   <label className="form-label">Contact Phone</label>
                   <input type="text" className="form-input" placeholder="+36 1 234 5678" value={carrierPhone} onChange={(e) => setCarrierPhone(e.target.value)} />
                 </div>
+                <div className="form-group">
+                  <label className="form-label">Country *</label>
+                  <input type="text" className="form-input" required placeholder="e.g. Hungary, Germany, Poland" value={carrierCountry} onChange={(e) => setCarrierCountry(e.target.value)} />
+                </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowCarrierModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Create Carrier</button>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowCarrierModal(false); setEditingCarrier(null); }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">{editingCarrier ? 'Save Changes' : 'Create Carrier'}</button>
               </div>
             </form>
           </div>

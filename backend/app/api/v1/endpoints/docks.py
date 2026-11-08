@@ -21,10 +21,35 @@ from app.schemas.dock_capability import (
     DockCapabilityResponse,
 )
 from app.services.audit import log_audit
+from app.services.external_refs import external_reference
+from app.services.outbox import emit_outbox_event
 from app.services.scheduling_engine import find_available_docks
 
 
 router = APIRouter()
+
+
+def dock_sync_payload(db: Session, dock: Dock) -> dict:
+    warehouse = db.get(Warehouse, dock.warehouse_id)
+    capability_types = db.scalars(
+        select(DockCapability.capability_type)
+        .where(
+            DockCapability.dock_id == dock.id,
+            DockCapability.is_active.is_(True),
+        )
+        .distinct()
+    ).all()
+    return {
+        "external_dock_id": external_reference(dock, "dock"),
+        "external_warehouse_id": (
+            external_reference(warehouse, "warehouse") if warehouse else None
+        ),
+        "dock_code": dock.dock_code,
+        "name": dock.name,
+        "capability_codes": sorted(set(capability_types)),
+        "is_active": dock.is_active,
+        "sync_version": 1,
+    }
 
 
 @router.get(
@@ -166,6 +191,12 @@ def create_dock(
         new_values=dock_data.model_dump(),
     )
 
+    emit_outbox_event(
+        db=db,
+        event_type="dock.created",
+        payload=dock_sync_payload(db, new_dock),
+    )
+
     db.commit()
     db.refresh(new_dock)
 
@@ -219,6 +250,12 @@ def update_dock(
         new_values=update_data,
     )
 
+    emit_outbox_event(
+        db=db,
+        event_type="dock.updated",
+        payload=dock_sync_payload(db, dock),
+    )
+
     db.commit()
     db.refresh(dock)
 
@@ -248,6 +285,11 @@ def deactivate_dock(
             description=f"Deactivated dock {dock.name} ({dock.dock_code})",
             old_values={"is_active": True},
             new_values={"is_active": False},
+        )
+        emit_outbox_event(
+            db=db,
+            event_type="dock.updated",
+            payload=dock_sync_payload(db, dock),
         )
         db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
